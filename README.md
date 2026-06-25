@@ -1,4 +1,4 @@
-# claude-code-usage-guard
+# clodd-stomper
 
 A small safety layer for [Claude Code](https://docs.claude.com) that stops you
 losing work when your usage window runs out mid-task.
