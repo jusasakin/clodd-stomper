@@ -1,0 +1,27 @@
+#!/bin/bash
+# claude-status — OPTIONAL wrapper to show another status-line tool alongside
+# usage on a single line.
+#
+# Why this exists: Claude Code's statusLine accepts ONE command, and it pipes
+# the session JSON in on stdin. stdin can only be read once. If two tools both
+# try to read it, whichever runs first consumes it and the second gets nothing.
+# This wrapper captures stdin ONCE and feeds the same copy to both tools.
+#
+# Edit OTHER_TOOL below to point at the second status-line command you want to
+# combine (e.g. a context-size meter). If you don't need a second tool, just
+# use bin/claude-usage --statusline directly and delete this file.
+
+OTHER_TOOL="node $HOME/.claude/plugins/SOME_PLUGIN/statusline.js"
+USAGE_TOOL="$HOME/bin/claude-usage --statusline"
+
+# Read the piped session JSON once, reuse for both.
+INPUT=$(cat)
+
+OTHER=$(printf '%s' "$INPUT" | $OTHER_TOOL 2>/dev/null)
+USAGE=$(printf '%s' "$INPUT" | $USAGE_TOOL)
+
+if [ -n "$OTHER" ]; then
+  echo "$OTHER · $USAGE"
+else
+  echo "$USAGE"
+fi

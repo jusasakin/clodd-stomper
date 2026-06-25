@@ -1,0 +1,130 @@
+#!/usr/bin/env python3
+"""
+claude-usage — print a one-line Claude Code usage summary.
+
+Two modes:
+  (no args)       full line, suitable for a desktop status bar (e.g. GNOME Executor)
+  --statusline    same line, but drains stdin first (Claude Code pipes session
+                  JSON in when used as a statusLine command)
+
+Output example:
+  ☁ 5h 42% (3h20m) · 7d 18% (5d)
+
+NOTE: This reads an UNDOCUMENTED Anthropic endpoint (oauth/usage) using an
+unofficial beta header. It may break without notice if Anthropic changes it.
+Do not build anything load-bearing on it.
+"""
+import json
+import sys
+import time
+import urllib.request
+import urllib.error
+from datetime import datetime, timezone
+from pathlib import Path
+
+# ── config ──────────────────────────────────────────────────────────────────
+CREDS = Path.home() / ".claude" / ".credentials.json"
+URL   = "https://api.anthropic.com/api/oauth/usage"
+CACHE = Path.home() / ".cache" / "claude-usage.json"
+TTL   = 120  # seconds between real API calls
+
+# ── helpers ─────────────────────────────────────────────────────────────────
+
+def get_token():
+    d = json.loads(CREDS.read_text())
+    return d["claudeAiOauth"]["accessToken"]
+
+
+def fetch():
+    token = get_token()
+    req = urllib.request.Request(
+        URL,
+        headers={
+            "Authorization":  f"Bearer {token}",
+            "anthropic-beta": "oauth-2025-04-20",
+            "User-Agent":     "claude-code/1.0.0",
+        },
+    )
+    with urllib.request.urlopen(req, timeout=10) as r:
+        return json.loads(r.read())
+
+
+def cached_fetch(force=False):
+    if not force and CACHE.exists():
+        try:
+            c = json.loads(CACHE.read_text())
+            if time.time() - c.get("_ts", 0) < TTL:
+                return c["data"]
+        except Exception:
+            pass
+    data = fetch()
+    CACHE.parent.mkdir(parents=True, exist_ok=True)
+    CACHE.write_text(json.dumps({"_ts": time.time(), "data": data}))
+    return data
+
+
+def pct(window):
+    for k in ("utilization", "utilization_pct", "percent_used"):
+        v = window.get(k)
+        if v is not None:
+            return float(v)
+    return 0.0
+
+
+def time_left(ts):
+    try:
+        reset = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+        s = int((reset - datetime.now(timezone.utc)).total_seconds())
+        if s <= 0:
+            return "↺"
+        h, rem = divmod(s, 3600)
+        m = rem // 60
+        if h >= 24:
+            d, h = divmod(h, 24)
+            return f"{d}d"
+        return f"{h}h{m:02d}m" if h else f"{m}m"
+    except Exception:
+        return "?"
+
+# ── main ─────────────────────────────────────────────────────────────────────
+
+def main():
+    statusline = "--statusline" in sys.argv
+    # Claude Code pipes session JSON on stdin in statusLine mode — drain it
+    if statusline and not sys.stdin.isatty():
+        try:
+            sys.stdin.read()
+        except Exception:
+            pass
+
+    try:
+        data = cached_fetch()
+    except urllib.error.HTTPError as e:
+        print("☁ auth expired" if e.code == 401 else f"☁ err {e.code}")
+        sys.exit(0)
+    except Exception:
+        print("☁ err")
+        sys.exit(0)
+
+    parts = []
+    worst = 0.0
+    for src_keys, label in ((("five_hour", "session"), "5h"),
+                            (("seven_day", "weekly"), "7d")):
+        w = next((data.get(k) for k in src_keys if data.get(k)), {})
+        if not w:
+            continue
+        p = pct(w)
+        worst = max(worst, p)
+        reset = w.get("resets_at") or w.get("reset_at", "")
+        parts.append(f"{label} {p:.0f}% ({time_left(reset)})")
+
+    if not parts:
+        print("☁ ? keys=" + ",".join(data.keys()))
+        return
+
+    flag = "🔴 LOW " if worst >= 90 else "🟠 " if worst >= 70 else ""
+    print(f"☁ {flag}" + " · ".join(parts))
+
+
+if __name__ == "__main__":
+    main()

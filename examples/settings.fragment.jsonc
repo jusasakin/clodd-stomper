@@ -1,0 +1,35 @@
+// Example fragment for ~/.claude/settings.json
+//
+// Merge these keys into your existing settings.json — do NOT paste this whole
+// file over the top of yours, or you'll lose your other settings. JSON does
+// not allow comments, so strip these // lines when you copy.
+//
+// Replace the paths if you installed the scripts somewhere other than ~/bin.
+
+{
+  // Option A — usage only in the status line:
+  "statusLine": {
+    "type": "command",
+    "command": "$HOME/bin/claude-usage --statusline"
+  },
+
+  // Option B — combine with another tool instead (see bin/claude-status):
+  // "statusLine": {
+  //   "type": "command",
+  //   "command": "$HOME/bin/claude-status"
+  // },
+
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 $HOME/bin/claude-usage-hook.py"
+          }
+        ]
+      }
+    ]
+  }
+}
