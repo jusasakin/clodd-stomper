@@ -13,7 +13,10 @@ sudo apt-get install -y gir1.2-ayatanaappindicator3-0.1
 echo "Copying files..."
 mkdir -p "$DEST"
 cp "$(dirname "$0")/claude-override-indicator.py" "$DEST/"
-cp "$(dirname "$0")/claude-override.svg" "$DEST/"
+cp "$(dirname "$0")/claude-override.svg"        "$DEST/"
+cp "$(dirname "$0")/claude-override-green.svg"  "$DEST/"
+cp "$(dirname "$0")/claude-override-orange.svg" "$DEST/"
+cp "$(dirname "$0")/claude-override-red.svg"    "$DEST/"
 chmod +x "$DEST/claude-override-indicator.py"
 
 echo "Setting up autostart..."

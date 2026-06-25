@@ -52,7 +52,7 @@ chmod +x ~/bin/claude-usage ~/bin/claude-usage-hook.py
 
 # 2. Confirm it can read your usage
 ~/bin/claude-usage
-# → ☁ 5h 42% (3h20m) · 7d 18% (5d)
+# → 🟢 5h 42% (3h20m) · 7d 18% (5d)
 ```
 
 If you instead see `☁ ? keys=...`, the endpoint returned a shape this script

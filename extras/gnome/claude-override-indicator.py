@@ -89,14 +89,23 @@ def read_usage():
     return '?', 0.0
 
 
+def override_is_active():
+    if not OVERRIDE.exists():
+        return False
+    try:
+        clicked = int(OVERRIDE.read_text().strip())
+        now = time.time()
+        return 0 < now - clicked < 5 * 3600
+    except Exception:
+        return False
+
+
 def on_override(_, indicator, item):
     try:
         OVERRIDE.parent.mkdir(parents=True, exist_ok=True)
         OVERRIDE.write_text(str(int(time.time())))
         subprocess.Popen(['notify-send', 'Claude Override',
                           'Limit removed until window resets'])
-        item.set_sensitive(False)
-        item.set_label('✓  Override active')
     except Exception:
         pass
 
@@ -108,11 +117,15 @@ def poll(indicator, override_item):
     indicator.set_label(text, text)
     indicator.set_icon_full(icon_for(pct), 'Claude Code usage')
 
-    if pct >= threshold:
+    if override_is_active():
+        override_item.set_sensitive(False)
+        override_item.set_label('✓  Override active')
+    elif pct >= threshold:
         override_item.set_sensitive(True)
         override_item.set_label('⚡  Push on — remove limit')
     else:
         override_item.set_sensitive(False)
+        override_item.set_label('⚡  Push on — remove limit')
 
     return GLib.SOURCE_CONTINUE
 
