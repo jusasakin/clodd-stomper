@@ -14,7 +14,9 @@ Modes:
                   panel) will show static red instead.
 
 Output example:
-  ☁ 5h 42% (3h20m) · 7d 18% (5d)
+  🟢 5h 42% (3h20m) · 7d 18% (5d)   (< 80%)
+  🟠 5h 83% (52m) · 7d 44% (3d)     (80–89%)
+  🔴 5h 93% (21m) · 7d 52% (2d)     (≥ 90%)
 
 NOTE: This reads an UNDOCUMENTED Anthropic endpoint (oauth/usage) using an
 unofficial beta header. It may break without notice if Anthropic changes it.
@@ -141,8 +143,8 @@ def main():
         print("☁ ? keys=" + ",".join(data.keys()))
         return
 
-    flag = "🔴 LOW " if worst >= 90 else "🟠 " if worst >= 70 else ""
-    print(f"☁ {flag}" + " · ".join(parts))
+    icon = "🔴" if worst >= 90 else "🟠" if worst >= 80 else "🟢"
+    print(f"{icon} " + " · ".join(parts))
 
 
 if __name__ == "__main__":
