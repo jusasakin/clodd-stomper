@@ -41,8 +41,7 @@ generic one is included in [`examples/CLAUDE.minimal.md`](examples/CLAUDE.minima
 
 ## Install
 
-Requires Python 3 and Claude Code. (The optional combiner wrapper also needs
-whatever second status-line tool you point it at.)
+Requires Python 3 and Claude Code. Works on macOS, Linux, and WSL.
 
 ```bash
 # 1. Copy the scripts somewhere on your machine
@@ -73,7 +72,7 @@ close procedure, the block message has nothing to trigger.
 
 ---
 
-## The override button
+## The override
 
 When you want to push past the 95% block deliberately, write the current time
 into the override file:
@@ -87,11 +86,8 @@ From then until the window resets, the hook stops blocking and prints a
 instead. It clears itself automatically on window rollover — nothing to switch
 back off.
 
-Bind that one-liner to whatever's convenient:
-
-- **A keyboard shortcut** (GNOME: Settings → Keyboard → Custom Shortcuts).
-- **A desktop-bar button** (e.g. the GNOME [Executor](https://github.com/raujonas/executor)
-  extension — add a command entry that runs the line and `echo`s a `⚡` label).
+**Easiest way to bind it:** Settings → Keyboard → Custom Shortcuts → add a
+shortcut that runs the one-liner above. Works on any platform.
 
 ---
 
@@ -119,6 +115,47 @@ point at your second tool, then point `statusLine` at `claude-status` instead.
 
 Thresholds live at the top of `claude-usage-hook.py` (`BLOCK_AT`, `WARN_AT`,
 `INFO_AT`). Adjust to taste.
+
+---
+
+## Ubuntu / GNOME: tray override button
+
+> **Ubuntu/GNOME only.** The core install above works everywhere — this is an
+> optional extra for users who want a visible button in the top bar.
+
+The `extras/gnome/` folder contains a system tray indicator that sits invisible
+until you hit the block threshold, then shows the Claude Code icon in the
+panel. Click it to remove the limit for the rest of the window.
+
+**One-command install:**
+
+```bash
+cd extras/gnome && bash install.sh
+```
+
+The script installs one dependency, copies the files to
+`~/.local/share/claude-override/`, and sets up autostart so the indicator
+runs on every login.
+
+To place the icon in the **center panel** (next to your status line) rather
+than the system tray, use the GNOME Shell extension instead:
+
+```bash
+cd extras/gnome
+mkdir -p ~/.local/share/gnome-shell/extensions/claude-override@local
+cp extension.js metadata.json claude-override.svg \
+   ~/.local/share/gnome-shell/extensions/claude-override@local/
+# Then log out and back in, and enable "Claude Override" in the Extensions app.
+```
+
+The threshold at which the icon appears defaults to 95%. To change it without
+editing any code:
+
+```bash
+echo "90" > ~/.claude/usage-guard-threshold
+```
+
+---
 
 ## License
 

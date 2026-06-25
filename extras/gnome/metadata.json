@@ -1,0 +1,7 @@
+{
+  "uuid": "claude-override@local",
+  "name": "Claude Override",
+  "description": "One-click override for clodd-stomper",
+  "version": 1,
+  "shell-version": ["46"]
+}
