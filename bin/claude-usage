@@ -8,7 +8,7 @@ Two modes:
                   JSON in when used as a statusLine command)
 
 Output example:
-  ☁ 5h 42% (3h20m) · 7d 18% (5d)
+  ✦ 5h 42% (3h20m) · 7d 18% (5d)
 
 NOTE: This reads an UNDOCUMENTED Anthropic endpoint (oauth/usage) using an
 unofficial beta header. It may break without notice if Anthropic changes it.
@@ -100,10 +100,10 @@ def main():
     try:
         data = cached_fetch()
     except urllib.error.HTTPError as e:
-        print("☁ auth expired" if e.code == 401 else f"☁ err {e.code}")
+        print("✦ auth expired" if e.code == 401 else f"✦ err {e.code}")
         sys.exit(0)
     except Exception:
-        print("☁ err")
+        print("✦ err")
         sys.exit(0)
 
     parts = []
@@ -119,11 +119,11 @@ def main():
         parts.append(f"{label} {p:.0f}% ({time_left(reset)})")
 
     if not parts:
-        print("☁ ? keys=" + ",".join(data.keys()))
+        print("✦ ? keys=" + ",".join(data.keys()))
         return
 
     flag = "🔴 LOW " if worst >= 90 else "🟠 " if worst >= 70 else ""
-    print(f"☁ {flag}" + " · ".join(parts))
+    print(f"✦ {flag}" + " · ".join(parts))
 
 
 if __name__ == "__main__":
