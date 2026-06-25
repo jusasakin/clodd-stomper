@@ -5,8 +5,10 @@ claude-usage-hook — Claude Code PreToolUse hook.
 Reads your Claude Code usage and injects graded awareness messages before
 each tool call:
 
-  >= 80%   informational nudge (does not block)
-  >= 90%   "finish current task, then wrap up" (does not block)
+  >= 80%   informational nudge to the user's terminal (does not block)
+  >= 90%   blocks ONCE per window so Claude actually sees the warning;
+           subsequent calls at this level are silent (avoids blocking every
+           tool call until the window resets)
   >= 95%   BLOCKS the tool call and tells Claude to run your session-close
            procedure (whatever you define in CLAUDE.md)
 
@@ -37,8 +39,10 @@ from pathlib import Path
 CREDS    = Path.home() / ".claude" / ".credentials.json"
 URL      = "https://api.anthropic.com/api/oauth/usage"
 CACHE    = Path.home() / ".cache" / "claude-usage.json"
+WARNED   = Path.home() / ".cache" / "claude-usage-warned.json"
 OVERRIDE = Path.home() / ".claude" / "usage-override"
-TTL      = 120          # seconds — normal cache
+TTL      = 30           # 30s here vs 120s in claude-usage: the gate should
+                        # never act on data older than this
 BLOCK_AT = 95           # block + trigger session close at/above this %
 WARN_AT  = 90           # strong warning at/above this %
 INFO_AT  = 80           # informational nudge at/above this %
@@ -123,14 +127,44 @@ def override_active(window_reset):
     except Exception:
         return False
     now = time.time()
-    # Safety: ignore a stamp from the future or absurdly old
     if clicked > now + 60 or (now - clicked) > (WINDOW_SECONDS + 3600):
         return False
     if window_reset:
         window_start = window_reset - WINDOW_SECONDS
         return clicked >= window_start
-    # No reset info — honour a click made within one window length
     return (now - clicked) < WINDOW_SECONDS
+
+
+def already_warned(threshold, window_reset):
+    """
+    True if we already fired an exit-1 warning at this threshold in the
+    current window. Prevents every tool call at 90% from being blocked.
+    """
+    if not WARNED.exists():
+        return False
+    try:
+        d = json.loads(WARNED.read_text())
+        ts = d.get(str(threshold))
+        if ts is None:
+            return False
+        if window_reset:
+            window_start = window_reset - WINDOW_SECONDS
+            return float(ts) >= window_start
+        return (time.time() - float(ts)) < WINDOW_SECONDS
+    except Exception:
+        return False
+
+
+def mark_warned(threshold):
+    d = {}
+    if WARNED.exists():
+        try:
+            d = json.loads(WARNED.read_text())
+        except Exception:
+            pass
+    d[str(threshold)] = time.time()
+    WARNED.parent.mkdir(parents=True, exist_ok=True)
+    WARNED.write_text(json.dumps(d))
 
 # ── main ─────────────────────────────────────────────────────────────────────
 
@@ -146,16 +180,21 @@ def main():
         data = cached_fetch(force=False)
         sess = data.get("five_hour") or data.get("session") or {}
         p = pct(sess)
-        if p >= WARN_AT:
-            data = cached_fetch(force=True)  # fresh data before any strong action
+        if p >= INFO_AT:
+            # Force-refresh at 80% so we never block or warn on stale data.
+            # Previous threshold was WARN_AT (90%), which let cached values in
+            # the 80-89% range through without a refresh — real usage could be
+            # much higher and the block at 95% would never fire.
+            data = cached_fetch(force=True)
             sess = data.get("five_hour") or data.get("session") or {}
             p = pct(sess)
     except Exception:
         sys.exit(0)  # never block on error
 
     reset = sess.get("resets_at") or sess.get("reset_at", "")
-    tl = time_left(reset)
-    ov = override_active(reset_epoch(reset))
+    tl    = time_left(reset)
+    ov    = override_active(reset_epoch(reset))
+    wr    = reset_epoch(reset)
 
     if p >= BLOCK_AT and not ov:
         print(
@@ -166,18 +205,23 @@ def main():
         )
         sys.exit(1)  # blocks the tool call
 
-    elif p >= BLOCK_AT and ov:
-        print(f"⚡ Override on — {p:.0f}% — commit now so nothing's lost")
-
-    elif p >= WARN_AT and not ov:
-        print(
-            f"🔴 Usage at {p:.0f}% ({tl} remaining). "
-            f"Finish the current task only, then run session close per CLAUDE.md. "
-            f"Do not start anything new."
-        )
-
     elif p >= WARN_AT and ov:
+        # Override covers both BLOCK_AT+ov and WARN_AT+ov
         print(f"⚡ Override on — {p:.0f}% — commit now so nothing's lost")
+
+    elif p >= WARN_AT:
+        # not ov implied — fire exit(1) once per window so Claude actually
+        # sees this warning; after that, stay silent so tool calls aren't
+        # blocked on every call until the window resets.
+        if not already_warned(WARN_AT, wr):
+            mark_warned(WARN_AT)
+            print(
+                f"🔴 Usage at {p:.0f}% ({tl} remaining). "
+                f"Finish the current task only, then run session close per CLAUDE.md. "
+                f"Do not start anything new. "
+                f"Re-invoke the tool call you were about to make to continue your current task."
+            )
+            sys.exit(1)
 
     elif p >= INFO_AT and not ov:
         print(f"🟠 [Usage {p:.0f}% — session close approaching, {tl} remaining]")

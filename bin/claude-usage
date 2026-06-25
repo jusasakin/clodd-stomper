@@ -2,13 +2,19 @@
 """
 claude-usage — print a one-line Claude Code usage summary.
 
-Two modes:
+Modes:
   (no args)       full line, suitable for a desktop status bar (e.g. GNOME Executor)
   --statusline    same line, but drains stdin first (Claude Code pipes session
                   JSON in when used as a statusLine command)
+  --icon          prints the path to the appropriate SVG icon (claudecode-color.svg
+                  normally, claudecode-alert.svg at >= 90%). SVGs must live in the
+                  same directory as this script. Useful for Waybar or any bar that
+                  renders SVG icons. CSS animation in the alert SVG flashes in
+                  Chromium/Electron-based renderers; librsvg-based bars (GNOME
+                  panel) will show static red instead.
 
 Output example:
-  ✦ 5h 42% (3h20m) · 7d 18% (5d)
+  ☁ 5h 42% (3h20m) · 7d 18% (5d)
 
 NOTE: This reads an UNDOCUMENTED Anthropic endpoint (oauth/usage) using an
 unofficial beta header. It may break without notice if Anthropic changes it.
@@ -23,10 +29,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 # ── config ──────────────────────────────────────────────────────────────────
-CREDS = Path.home() / ".claude" / ".credentials.json"
-URL   = "https://api.anthropic.com/api/oauth/usage"
-CACHE = Path.home() / ".cache" / "claude-usage.json"
-TTL   = 120  # seconds between real API calls
+CREDS      = Path.home() / ".claude" / ".credentials.json"
+URL        = "https://api.anthropic.com/api/oauth/usage"
+CACHE      = Path.home() / ".cache" / "claude-usage.json"
+TTL        = 120  # seconds between real API calls
+SCRIPT_DIR = Path(__file__).resolve().parent  # SVGs live alongside this script
 
 # ── helpers ─────────────────────────────────────────────────────────────────
 
@@ -90,6 +97,7 @@ def time_left(ts):
 
 def main():
     statusline = "--statusline" in sys.argv
+    icon_mode  = "--icon" in sys.argv
     # Claude Code pipes session JSON on stdin in statusLine mode — drain it
     if statusline and not sys.stdin.isatty():
         try:
@@ -100,10 +108,16 @@ def main():
     try:
         data = cached_fetch()
     except urllib.error.HTTPError as e:
-        print("✦ auth expired" if e.code == 401 else f"✦ err {e.code}")
+        if icon_mode:
+            print(SCRIPT_DIR / "claudecode-color.svg")
+        else:
+            print("☁ auth expired" if e.code == 401 else f"☁ err {e.code}")
         sys.exit(0)
     except Exception:
-        print("✦ err")
+        if icon_mode:
+            print(SCRIPT_DIR / "claudecode-color.svg")
+        else:
+            print("☁ err")
         sys.exit(0)
 
     parts = []
@@ -118,12 +132,17 @@ def main():
         reset = w.get("resets_at") or w.get("reset_at", "")
         parts.append(f"{label} {p:.0f}% ({time_left(reset)})")
 
+    if icon_mode:
+        icon = "claudecode-alert.svg" if worst >= 90 else "claudecode-color.svg"
+        print(SCRIPT_DIR / icon)
+        return
+
     if not parts:
-        print("✦ ? keys=" + ",".join(data.keys()))
+        print("☁ ? keys=" + ",".join(data.keys()))
         return
 
     flag = "🔴 LOW " if worst >= 90 else "🟠 " if worst >= 70 else ""
-    print(f"✦ {flag}" + " · ".join(parts))
+    print(f"☁ {flag}" + " · ".join(parts))
 
 
 if __name__ == "__main__":

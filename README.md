@@ -105,9 +105,13 @@ point at your second tool, then point `statusLine` at `claude-status` instead.
 
 - `claude-usage` fetches usage (cached 120s) and prints a compact line.
 - `claude-usage-hook.py` runs as a `PreToolUse` hook before every tool call.
-  Below 80% it's silent; at 80/90% it nudges; at 95% it blocks (exit 1) and
-  tells Claude to close out. It force-refreshes the usage figure before any
-  block so it never acts on stale data, and it fails open on any error.
+  It uses a 30s cache (shorter than the display script) so the gate never acts
+  on stale data. Below 80% it's silent; at 80% it prints a terminal nudge; at
+  90% it fires exit 1 **once per window** so Claude actually sees the warning
+  (subsequent calls at 90% are silent so tool calls aren't blocked on a loop);
+  at 95% it hard-blocks on every call until the window resets or the override
+  is active. It force-refreshes before acting at ≥ 80% and fails open on any
+  error.
 - The override is a timestamp tied to the current window, so it can't get
   stuck "on."
 
@@ -118,38 +122,51 @@ Thresholds live at the top of `claude-usage-hook.py` (`BLOCK_AT`, `WARN_AT`,
 
 ---
 
-## Ubuntu / GNOME: tray override button
+## Ubuntu / GNOME: panel indicator
 
 > **Ubuntu/GNOME only.** The core install above works everywhere — this is an
-> optional extra for users who want a visible button in the top bar.
+> optional extra for GNOME users who want live usage stats and an override
+> button in the top bar.
 
-The `extras/gnome/` folder contains a system tray indicator that sits invisible
-until you hit the block threshold, then shows the Claude Code icon in the
-panel. Click it to remove the limit for the rest of the window.
+The `extras/gnome/` folder contains two options:
 
-**One-command install:**
+**Option A — System tray (AppIndicator):** invisible until you hit the block
+threshold, then pops up a tray icon with an override menu. One-command install:
 
 ```bash
 cd extras/gnome && bash install.sh
 ```
 
-The script installs one dependency, copies the files to
-`~/.local/share/claude-override/`, and sets up autostart so the indicator
-runs on every login.
+**Option B — GNOME Shell extension (recommended):** always visible in the
+centre panel next to your status line, showing a live usage percentage. The
+Claude icon changes colour as usage climbs:
 
-To place the icon in the **center panel** (next to your status line) rather
-than the system tray, use the GNOME Shell extension instead:
+| Usage | Icon | Label |
+|-------|------|-------|
+| < 80% | Green Claude icon | `☁ 42%` |
+| 80–89% | Orange Claude icon | `🟠 85%` |
+| 90–94% | Flashing red Claude icon | `🔴 92%` |
+| 95%+ | Flashing red Claude icon | `⛔ 97%` |
+| Override active | Orange Claude icon | `⚡ 97%` |
+
+Click the icon at 95%+ to remove the limit for the rest of the window. The
+flash is implemented by swapping between two static SVGs every 500 ms — GNOME
+Shell's librsvg renderer ignores CSS animations.
+
+Install:
 
 ```bash
 cd extras/gnome
-mkdir -p ~/.local/share/gnome-shell/extensions/claude-override@local
-cp extension.js metadata.json claude-override.svg \
-   ~/.local/share/gnome-shell/extensions/claude-override@local/
-# Then log out and back in, and enable "Claude Override" in the Extensions app.
+DEST=~/.local/share/gnome-shell/extensions/claude-override@local
+mkdir -p "$DEST"
+cp extension.js metadata.json \
+   icon-green.svg icon-orange.svg icon-red.svg icon-red-dim.svg \
+   "$DEST/"
+gnome-extensions enable claude-override@local
+# Or log out and back in, then enable "Claude Override" in the Extensions app.
 ```
 
-The threshold at which the icon appears defaults to 95%. To change it without
-editing any code:
+The block threshold defaults to 95% (matching the hook). To change it:
 
 ```bash
 echo "90" > ~/.claude/usage-guard-threshold
