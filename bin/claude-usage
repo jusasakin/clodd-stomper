@@ -143,8 +143,12 @@ def main():
         print("☁ ? keys=" + ",".join(data.keys()))
         return
 
-    icon = "🔴" if worst >= 90 else "🟠" if worst >= 80 else "🟢"
-    print(f"{icon} " + " · ".join(parts))
+    icon = "🔴" if worst >= 80 else "🟠" if worst >= 60 else "🟢"
+    if worst >= 90:
+        # ANSI blink — works in most terminals; ignored gracefully if unsupported
+        print(f"\033[5m{icon}\033[0m " + " · ".join(parts))
+    else:
+        print(f"{icon} " + " · ".join(parts))
 
 
 if __name__ == "__main__":

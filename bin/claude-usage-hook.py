@@ -44,8 +44,8 @@ OVERRIDE = Path.home() / ".claude" / "usage-override"
 TTL      = 30           # 30s here vs 120s in claude-usage: the gate should
                         # never act on data older than this
 BLOCK_AT = 95           # block + trigger session close at/above this %
-WARN_AT  = 90           # strong warning at/above this %
-INFO_AT  = 80           # informational nudge at/above this %
+WARN_AT  = 80           # strong warning at/above this %
+INFO_AT  = 60           # informational nudge at/above this %
 WINDOW_SECONDS = 5 * 3600  # length of the rolling window the % refers to
 
 # ── helpers ─────────────────────────────────────────────────────────────────
@@ -181,10 +181,9 @@ def main():
         sess = data.get("five_hour") or data.get("session") or {}
         p = pct(sess)
         if p >= INFO_AT:
-            # Force-refresh at 80% so we never block or warn on stale data.
-            # Previous threshold was WARN_AT (90%), which let cached values in
-            # the 80-89% range through without a refresh — real usage could be
-            # much higher and the block at 95% would never fire.
+            # Force-refresh at INFO_AT so we never block or warn on stale data.
+            # Without this, a cached value below INFO_AT could mask real usage
+            # above WARN_AT or BLOCK_AT, causing the gate to never fire.
             data = cached_fetch(force=True)
             sess = data.get("five_hour") or data.get("session") or {}
             p = pct(sess)
